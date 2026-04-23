@@ -9,21 +9,25 @@
  project(czmq)
  enable_language(C)
  enable_testing()
-@@ -123,6 +123,13 @@
+@@ -123,6 +123,17 @@
      set(MORE_LIBRARIES)
  endif()
  
-+set(CMAKE_REQUIRED_LIBRARIES -lrt)
-+check_symbol_exists(clock_gettime "time.h" HAVE_CLOCK_GETTIME)
-+set(CMAKE_REQUIRED_LIBRARIES)
-+if(HAVE_CLOCK_GETTIME)
-+    list(APPEND MORE_LIBRARIES -lrt)
++if(NOT APPLE)
++    # Apple platforms have clock_gettime in libSystem; there's no
++    # separate librt to link against (and adding -lrt fails the link).
++    set(CMAKE_REQUIRED_LIBRARIES -lrt)
++    check_symbol_exists(clock_gettime "time.h" HAVE_CLOCK_GETTIME)
++    set(CMAKE_REQUIRED_LIBRARIES)
++    if(HAVE_CLOCK_GETTIME)
++        list(APPEND MORE_LIBRARIES -lrt)
++    endif()
 +endif()
 +
  list(APPEND CMAKE_MODULE_PATH "${SOURCE_DIR}")
  set(OPTIONAL_LIBRARIES)
  set(OPTIONAL_LIBRARIES_STATIC)
-@@ -544,6 +549,7 @@
+@@ -544,6 +553,7 @@
  ########################################################################
  # executables
  ########################################################################
@@ -31,7 +35,7 @@
  add_executable(
      zmakecert
      "${SOURCE_DIR}/src/zmakecert.c"
-@@ -631,6 +637,7 @@
+@@ -631,6 +641,7 @@
      ${OPTIONAL_LIBRARIES_STATIC}
  )
  endif()
