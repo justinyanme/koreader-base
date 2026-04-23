@@ -185,6 +185,27 @@ else ifeq ($(TARGET), macos)
 	SDL=builtin
 	EMULATE_READER=1
 	DARWIN = 1
+else ifeq ($(TARGET), ios)
+	# Real cross-compile target (no EMULATE_READER): host (macOS) compiler
+	# is clang, but we point it at the iOS SDK + iOS triple.
+	SDL=builtin
+	DARWIN = 1
+	IOS = 1
+	IOS_PLATFORM ?= iphoneos
+	IOS_ARCH ?= arm64
+	IOS_DEPLOYMENT_TARGET ?= 27.0
+	ifeq ($(IOS_PLATFORM), iphonesimulator)
+		IOS_TRIPLE := $(IOS_ARCH)-apple-ios$(IOS_DEPLOYMENT_TARGET)-simulator
+	else
+		IOS_TRIPLE := $(IOS_ARCH)-apple-ios$(IOS_DEPLOYMENT_TARGET)
+	endif
+	IOS_SDK_PATH := $(shell xcrun --sdk $(IOS_PLATFORM) --show-sdk-path)
+	ifeq (,$(IOS_SDK_PATH))
+		$(error could not locate iOS SDK for platform '$(IOS_PLATFORM)' (xcrun failed))
+	endif
+	# Autoconf-compatible host triple (no `aarch64-apple-darwin-clang`
+	# binary actually exists; we override tool names below).
+	CHOST := aarch64-apple-darwin
 else ifneq (,$(filter android android-arm android-arm64 android-x86 android-x86_64,$(TARGET)))
   ANDROID=1
   MONOLIBTIC?=1
@@ -266,8 +287,16 @@ endif
 
 ifdef DARWIN
   USE_CLANG = 1
-  BREW_PREFIX := $(shell brew --prefix)
-  export MACOSX_DEPLOYMENT_TARGET := $(or $(MACOSX_DEPLOYMENT_TARGET),$(shell sw_vers -productVersion))
+  ifndef IOS
+    BREW_PREFIX := $(shell brew --prefix)
+    export MACOSX_DEPLOYMENT_TARGET := $(or $(MACOSX_DEPLOYMENT_TARGET),$(shell sw_vers -productVersion))
+  endif
+  # Note: deliberately *not* exporting IPHONEOS_DEPLOYMENT_TARGET for IOS.
+  # When set in the environment, plain `clang` (used by meson's native
+  # sanity probe) starts targeting iOS by default, producing an unsigned
+  # iOS binary that macOS SIGKILLs at run. The deployment target is
+  # already encoded in the `-target arm64-apple-iosX.Y` flag baked into
+  # CC/CXX, and CMAKE_OSX_DEPLOYMENT_TARGET is set via the toolchain file.
 endif
 
 ifneq ($(CCACHE),)
@@ -338,6 +367,17 @@ else
 	QFLAGS:=
 endif
 
+# iOS: cross-compile via host clang plus -target / -isysroot.
+# Done after the USE_CLANG block so we override CC/CXX without breaking
+# CHOST-based logic for other targets.
+ifdef IOS
+	IOS_TARGET_FLAGS := -target $(IOS_TRIPLE) -isysroot $(IOS_SDK_PATH)
+	CC := clang $(IOS_TARGET_FLAGS)
+	CXX := clang++ $(IOS_TARGET_FLAGS)
+	HOSTCC := clang
+	HOSTCXX := clang++
+endif
+
 # set cross-compiler/host AR LD RANLIB
 ifdef ANDROID
 	STRIP:=llvm-strip
@@ -347,6 +387,16 @@ ifdef ANDROID
 	OBJCOPY:=llvm-objcopy
 	RANLIB:=llvm-ranlib
 	READELF:=llvm-readelf
+else ifdef IOS
+	# CHOST is set for autoconf compatibility but no $(CHOST)-tool
+	# binaries exist; use the unprefixed ones (xcrun would also work).
+	STRIP:=strip
+	AR:=ar
+	LD:=ld
+	NM:=nm
+	OBJCOPY:=objcopy
+	RANLIB:=ranlib
+	READELF:=readelf
 else ifdef CHOST
 	STRIP:=$(CHOST)-strip
 	AR:=$(CHOST)-ar
@@ -403,11 +453,13 @@ else
   BASE_CFLAGS += -DNDEBUG
 endif
 ifdef DARWIN
-  # Work around Apple clang bug: `/usr/local/include` is inserted
-  # at the start of the system include path list, above any other
-  # entries, including `-isystem …` options passed on the command
-  # line (cf. https://stackoverflow.com/a/66377265).
-  BASE_CFLAGS += -idirafter /usr/local/include
+  ifndef IOS
+    # Work around Apple clang bug: `/usr/local/include` is inserted
+    # at the start of the system include path list, above any other
+    # entries, including `-isystem …` options passed on the command
+    # line (cf. https://stackoverflow.com/a/66377265).
+    BASE_CFLAGS += -idirafter /usr/local/include
+  endif
 else
   # Trim down binary size (when combined with linker `--gc-sections`).
   BASE_CFLAGS += -fdata-sections -ffunction-sections
@@ -892,6 +944,7 @@ set(CMAKE_INSTALL_INCLUDEDIR include CACHE FILEPATH "install directory: includes
 set(CMAKE_INSTALL_LIBDIR     lib     CACHE FILEPATH "install directory: libraries")
 
 set(APPLE $(DARWIN))
+set(IOS $(IOS))
 set(LINUX $(if $(DARWIN)$(WIN32),,1))
 set(WIN32 $(WIN32))
 
@@ -926,6 +979,17 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 # As well as for CMake packages too.
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+# iOS: CMake's own iOS support picks the SDK and architecture. Kept at the
+# end so it overrides the generic `CMAKE_SYSTEM_NAME` above.
+$(if $(IOS),set(CMAKE_SYSTEM_NAME iOS))
+$(if $(IOS),set(CMAKE_OSX_SYSROOT $(IOS_PLATFORM)))
+$(if $(IOS),set(CMAKE_OSX_ARCHITECTURES $(IOS_ARCH)))
+$(if $(IOS),set(CMAKE_OSX_DEPLOYMENT_TARGET $(IOS_DEPLOYMENT_TARGET)))
+# CMake on iOS defaults executables to MACOSX_BUNDLE, which several
+# thirdparty CMakeLists are not prepared for (they call install(TARGETS …)
+# without a BUNDLE DESTINATION). We don't ship CLI helpers anyway.
+$(if $(IOS),set(CMAKE_MACOSX_BUNDLE OFF))
 
 endef
 
@@ -1023,9 +1087,11 @@ CXXFLAGS = []
 LDFLAGS = ['-L$(abspath $(STAGING_DIR)/lib)']
 
 [binaries]
-c = [CCACHE, '$(strip $(REALCC))']
+# iOS bakes `-target … -isysroot …` into CC/CXX: split them into
+# token lists (meson takes the first element as the binary).
+c = [CCACHE, $(if $(IOS),$(patsubst %,'%'$(comma),$(REALCC)),'$(strip $(REALCC))')]
 # c_ld
-cpp = [CCACHE, '$(strip $(REALCXX))']
+cpp = [CCACHE, $(if $(IOS),$(patsubst %,'%'$(comma),$(REALCXX)),'$(strip $(REALCXX))')]
 # cpp_ld
 ar = '$(strip $(AR))'
 nm = '$(strip $(NM))'
@@ -1053,8 +1119,11 @@ else
 MESON_CROSS_TOOLCHAIN = $(CMAKE_DIR)/meson_cross_toolchain.ini
 MESON_HOST_TOOLCHAIN = $(CMAKE_DIR)/meson_host_toolchain.ini
 
-MESON_CROSS_SYSTEM = $(if $(ANDROID),android,linux)
+MESON_CROSS_SYSTEM = $(if $(IOS),ios,$(if $(ANDROID),android,linux))
 ifneq (,$(filter aarch64-%,$(TARGET_MACHINE)))
+  MESON_CROSS_CPU_FAMILY = aarch64
+else ifneq (,$(filter arm64-%,$(TARGET_MACHINE)))
+  # Meson uses 'aarch64' as the canonical cpu_family for 64-bit ARM.
   MESON_CROSS_CPU_FAMILY = aarch64
 else ifneq (,$(filter arm-% armv7a-%,$(TARGET_MACHINE)))
   MESON_CROSS_CPU_FAMILY = arm
@@ -1081,7 +1150,9 @@ endef
 define meson_host_toolchain
 
 [constants]
-CCACHE = $(if $(CCACHE),'$(CCACHE)','env')
+# iOS: no ccache for native helpers run during meson's sanity probe;
+# ccache-linked binaries were observed losing their signature (SIGKILL).
+CCACHE = $(if $(and $(CCACHE),$(if $(IOS),,1)),'$(CCACHE)','env')
 
 [binaries]
 c = [CCACHE, '$(strip $(HOSTCC))']

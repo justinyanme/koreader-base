@@ -92,15 +92,24 @@ endfunction()
 
 # }}}.
 
-# Ensure `MACOSX_DEPLOYMENT_TARGET` is set, and `CMAKE_OSX_DEPLOYMENT_TARGET` matches.
+# Ensure the Apple deployment target is set consistently. On macOS we
+# also require the corresponding env var so autotools builds pick it up.
+# On iOS we deliberately *don't* set the env var (it would make plain
+# `clang` invocations auto-target iOS) — the toolchain encodes the
+# version via `-target arm64-apple-iosX.Y` instead.
 if(APPLE)
-    if(NOT DEFINED ENV{MACOSX_DEPLOYMENT_TARGET} OR "$ENV{MACOSX_DEPLOYMENT_TARGET}" STREQUAL "")
-        message(FATAL_ERROR "$MACOSX_DEPLOYMENT_TARGET is not set")
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        message(FATAL_ERROR "CMAKE_OSX_DEPLOYMENT_TARGET is not set")
     endif()
-    if(NOT "$ENV{MACOSX_DEPLOYMENT_TARGET}" STREQUAL CMAKE_OSX_DEPLOYMENT_TARGET)
-        message(FATAL_ERROR "$MACOSX_DEPLOYMENT_TARGET / CMAKE_OSX_DEPLOYMENT_TARGET discrepancy: \"$ENV{MACOSX_DEPLOYMENT_TARGET}\" != \"${CMAKE_OSX_DEPLOYMENT_TARGET}\"")
+    if(NOT IOS)
+        if(NOT DEFINED ENV{MACOSX_DEPLOYMENT_TARGET} OR "$ENV{MACOSX_DEPLOYMENT_TARGET}" STREQUAL "")
+            message(FATAL_ERROR "$MACOSX_DEPLOYMENT_TARGET is not set")
+        endif()
+        if(NOT "$ENV{MACOSX_DEPLOYMENT_TARGET}" STREQUAL CMAKE_OSX_DEPLOYMENT_TARGET)
+            message(FATAL_ERROR "$MACOSX_DEPLOYMENT_TARGET / CMAKE_OSX_DEPLOYMENT_TARGET discrepancy: \"$ENV{MACOSX_DEPLOYMENT_TARGET}\" != \"${CMAKE_OSX_DEPLOYMENT_TARGET}\"")
+        endif()
     endif()
-    message(STATUS "OSX deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    message(STATUS "Apple deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
 endif()
 
 set(COMPILER_LIB_EXTRA_SEARCH_PATHS)
