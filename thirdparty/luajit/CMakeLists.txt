@@ -27,6 +27,35 @@ endif()
 if(EMULATE_READER)
     append_autotools_vars(BUILD_ARGS)
     list(APPEND BUILD_ARGS TARGET_STRIP=true)
+elseif(IOS)
+    assert_var_defined(BASE_CFLAGS)
+    assert_var_defined(HOSTCC)
+    assert_var_defined(HOSTCFLAGS)
+    # iOS: no CHOST-prefixed cross-clang exists. Our CC/CXX already
+    # bake in `-target ... -isysroot ...`, so we override TARGET_CC
+    # directly and bypass the CROSS prefix mechanism. JIT is disabled
+    # because iOS forbids W^X memory without a special entitlement.
+    list(APPEND BUILD_ARGS
+        CC=${HOSTCC}
+        CFLAGS=${BASE_CFLAGS}
+        LDFLAGS=
+        "HOST_CC=${CCACHE} ${HOSTCC}"
+        HOST_CFLAGS=${HOSTCFLAGS}
+        HOST_LDFLAGS=
+        "TARGET_CC=${CC}"
+        # Override the static / dynamic CC vars too; they default to CC
+        # which on iOS would be the bare host clang (no -target/-isysroot).
+        "TARGET_STCC=${CC}"
+        "TARGET_DYNCC=${CC} -fPIC"
+        "TARGET_LD=${CC}"
+        "TARGET_AR=${AR} rcus"
+        "TARGET_CFLAGS=${CFLAGS} -DLUAJIT_DISABLE_JIT -DLUAJIT_SECURITY_STRHASH=0 -DLUAJIT_SECURITY_STRID=0"
+        TARGET_LDFLAGS=${LDFLAGS}
+        TARGET_RANLIB=${RANLIB}
+        TARGET_SHLDFLAGS=${LDFLAGS}
+        TARGET_SYS=iOS
+        TARGET_STRIP=true
+    )
 else()
     assert_var_defined(BASE_CFLAGS)
     assert_var_defined(HOSTCC)

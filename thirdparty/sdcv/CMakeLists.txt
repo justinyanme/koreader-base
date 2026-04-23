@@ -21,10 +21,11 @@ if(NOT HAS_ICONV)
     string(APPEND GLIB2_LIBRARIES $<SEMICOLON> ${STAGING_DIR}/lib/libiconv.a)
 endif()
 if(APPLE)
-    string(APPEND GLIB2_LIBRARIES
-        $<SEMICOLON> "-framework Foundation"
-        $<SEMICOLON> "-framework AppKit"
-    )
+    string(APPEND GLIB2_LIBRARIES $<SEMICOLON> "-framework Foundation")
+    if(NOT IOS)
+        # AppKit is macOS-only; iOS uses UIKit (which sdcv doesn't need).
+        string(APPEND GLIB2_LIBRARIES $<SEMICOLON> "-framework AppKit")
+    endif()
 else()
     # Need pthread library and rt library on old glibc (for `clock_gettime`).
     string(APPEND GLIB2_LIBRARIES $<SEMICOLON> -pthread)
