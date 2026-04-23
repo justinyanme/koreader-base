@@ -191,6 +191,9 @@ else ifeq ($(TARGET), ios)
 	SDL=builtin
 	DARWIN = 1
 	IOS = 1
+	# Everything is linked statically into the app executable: the
+	# monolibtic "library" is a static archive on iOS (cf. koreader_targets.cmake).
+	MONOLIBTIC = 1
 	IOS_PLATFORM ?= iphoneos
 	IOS_ARCH ?= arm64
 	IOS_DEPLOYMENT_TARGET ?= 27.0
@@ -1056,8 +1059,10 @@ set(KEEP_DEBUG         $(and $(filter -g%,$(BASE_CFLAGS)),1))
 
 # Platform flags.
 set(ANDROID        $(ANDROID))
+set(APPLE          $(DARWIN))
 set(BOOKEEN        $(BOOKEEN))
 set(CERVANTES      $(CERVANTES))
+set(IOS            $(IOS))
 set(KINDLE         $(KINDLE))
 set(KOBO           $(KOBO))
 set(LEGACY         $(LEGACY))
