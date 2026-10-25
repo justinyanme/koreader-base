@@ -181,7 +181,7 @@ declare_koreader_target(
 )
 
 # koreader
-if(APPLE)
+if(APPLE AND NOT IOS)
     set(EXCLUDE_FROM_ALL)
 else()
     set(EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)
@@ -288,8 +288,21 @@ if(MONOLIBTIC)
         SOURCES monolibtic.cpp
     )
 
+    if(IOS)
+        # No dylibs on iOS: prelink everything into one relocatable object
+        # (`ld -r`) that the app executable links statically.
+        set(CMAKE_CXX_CREATE_SHARED_LIBRARY
+            "<CMAKE_CXX_COMPILER> <FLAGS> -r <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>"
+        )
+    endif()
+
     function(setup_koreader_monolibtic)
-        if(APPLE)
+        if(IOS)
+            set_target_properties(koreader-monolibtic PROPERTIES SUFFIX .o)
+            # Keep every global: the app executable's own export list decides
+            # what the FFI can see (and dead-strips the rest).
+            target_link_options(koreader-monolibtic PRIVATE "-Wl,-exported_symbol,_*")
+        elseif(APPLE)
             target_link_options(koreader-monolibtic PRIVATE -Wl,-dead_strip,-dead_strip_dylibs)
         else()
             # NOTE: we can't close the group started with `-Wl,--start-group` because

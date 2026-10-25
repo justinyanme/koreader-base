@@ -58,7 +58,7 @@ target_include_directories(_crengine__crengine INTERFACE ${OUTPUT_DIR}/thirdpart
 
 # czmq
 set(LIBRARIES)
-if(NOT APPLE AND NOT ANDROID)
+if(NOT APPLE AND NOT ANDROID AND NOT IOS)
     list(APPEND LIBRARIES rt)
 endif()
 declare_dependency(czmq::czmq MONOLIBTIC czmq zmq LIBRARIES ${LIBRARIES})
@@ -123,7 +123,7 @@ set(SSL_LIBS)
 if(MONOLIBTIC)
     list(APPEND CRYPTO_LIBS pthread)
     list(APPEND SSL_LIBS pthread)
-    if(NOT ANDROID)
+    if(NOT ANDROID AND NOT APPLE AND NOT IOS)
         list(APPEND CRYPTO_LIBS rt)
         list(APPEND SSL_LIBS rt)
     endif()
@@ -139,7 +139,7 @@ declare_dependency(libwebp::webpdemux MONOLIBTIC webp webpdemux)
 
 # libzmq
 set(LIBRARIES)
-if(NOT APPLE AND NOT ANDROID)
+if(NOT APPLE AND NOT ANDROID AND NOT IOS)
     list(APPEND LIBRARIES rt)
 endif()
 if(MONOLIBTIC)
