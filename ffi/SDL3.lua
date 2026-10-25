@@ -145,7 +145,8 @@ function S.open(w, h, x, y)
     -- iOS display modes are pixels, but fullscreen windows use points. Query
     -- the actual window before the first framebuffer/UI constants are built.
     -- Keep desktop/Emulator sizing unchanged, including macOS Retina fullscreen.
-    if ffi.string(SDL.SDL_GetPlatform()) == "iOS" then
+    local is_ios = ffi.string(SDL.SDL_GetPlatform()) == "iOS"
+    if is_ios then
         local window_w, window_h = ffi.new("int[1]"), ffi.new("int[1]")
         if not SDL.SDL_GetWindowSize(S.screen, window_w, window_h) then
             error("SDL cannot get window size: " .. ffi.string(SDL.SDL_GetError()))
@@ -160,7 +161,9 @@ function S.open(w, h, x, y)
     S.renderer = SDL.SDL_CreateRenderer(S.screen, nil)
     local output_w = ffi.new("int[1]", 0)
     local output_h = ffi.new("int[1]", 0)
-    if SDL.SDL_GetCurrentRenderOutputSize(S.renderer, output_w, output_h) and tonumber(output_w[0]) ~= w then
+    if SDL.SDL_GetCurrentRenderOutputSize(S.renderer, output_w, output_h) and (is_ios or tonumber(output_w[0]) ~= w) then
+        -- On iOS a persisted pre-point-ruler width can equal the pixel width;
+        -- it is not evidence that the output and window coordinates coincide.
         -- This is a workaround to obtain a simulacrum of real pixels in scenarios that marketing likes to refer to as "HiDPI".
         -- The utterly deranged idea is to render things at 2x or 3x, so it can subsequently be scaled down in order to assure everything will always be at least a little bit blurry unless you happen to use exactly 2x or 3x, instead of the traditional methods of just rendering at the desired DPI that have worked perfectly fine in Windows and X11 for decades.
         -- Contrary to claims by the blind that macOS is sharp, it's not.
