@@ -31,7 +31,7 @@ describe("SDL framebuffer viewport resize", function()
         screen = Framebuffer:extend{
             bb = BB.new(1320, 2868, BB.TYPE_BBRGB32),
             screen_size = { w = 1320, h = 2868 },
-            device = { canHWInvert = function() return false end },
+            device = { canHWInvert = function() return false end, isIOS = function() return true end },
             -- No renderer/window is needed to exercise buffer ownership.
             refreshFullImp = function() end,
         }
@@ -88,6 +88,31 @@ describe("SDL framebuffer viewport resize", function()
         assert.are.same({ 1320, 2868 }, uploaded[#uploaded])
         screen:refreshFull(0, 0, 100, 100)
         assert.are.same({ 100, 100 }, uploaded[#uploaded])
+    end)
+
+    it("uploads the first iOS content frame whole after viewport and texture creation", function()
+        screen.refreshFullImp = nil
+        for creation = 1, 2 do
+            if creation == 2 then screen:resize() end -- recreate the allocation and texture
+            -- Exercise the real clearing upload too: it must not consume the
+            -- pending full upload before the first UI content is painted.
+            screen:setViewport{ x = 0, y = 186, w = 1320, h = 2580 }
+            uploaded = {}
+            screen.bb:paintRect(0, 2500, 100, 20, BB.COLOR_BLACK) -- outside the requested refresh
+            screen:refreshFull(0, 0, 100, 100)
+            assert.are.same({ { 1320, 2868 } }, uploaded)
+            screen:refreshFull(0, 0, 100, 100)
+            assert.are.same({ 100, 100 }, uploaded[#uploaded])
+        end
+    end)
+
+    it("keeps an Emulator viewport's partial uploads unchanged", function()
+        screen.device.isIOS = function() return false end
+        screen.refreshFullImp = nil
+        screen:setViewport{ x = 0, y = 186, w = 1320, h = 2580 }
+        uploaded = {}
+        screen:refreshFull(0, 0, 100, 100)
+        assert.are.same({ { 100, 100 } }, uploaded)
     end)
 
     it("does not let the flash shadow consume the final buffer's inversion transition", function()

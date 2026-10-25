@@ -110,19 +110,29 @@ function framebuffer:_newBB(w, h)
     if inverse then
         self.bb:invert()
     end
+    self.needs_full_upload = self.device:isIOS()
+end
+
+function framebuffer:setViewport(viewport)
+    framebuffer.parent.setViewport(self, viewport)
+    -- The parent uploads its white clearing frame before the UI is painted.
+    -- Keep the first content upload whole too, even if only a small widget
+    -- requested a refresh. Re-arm after that clearing frame, also on resize.
+    self.needs_full_upload = self.device:isIOS()
 end
 
 function framebuffer:_render(bb, x, y, w, h)
-    -- Night mode clears the full allocation, including the safe-area margins.
-    -- Upload those margins too when inversion changes; subsequent refreshes
-    -- retain their requested dirty rectangles. SDL's texture is persistent.
+    -- Populate the whole iOS viewport texture on its first content frame.
+    -- Night mode also clears the full allocation, including the safe-area
+    -- margins. Subsequent refreshes retain their requested dirty rectangles.
     if self.full_bb and bb == self.full_bb then
-        if self.rendered_inverse ~= bb:getInverse() then
+        if self.needs_full_upload or self.rendered_inverse ~= bb:getInverse() then
             x, y, w, h = 0, 0, bb:getWidth(), bb:getHeight()
         end
         -- A flash shadow may be presented first; only the final full buffer
         -- owns this state, so that shadow cannot consume the transition.
         self.rendered_inverse = bb:getInverse()
+        self.needs_full_upload = false
     end
     -- x, y, w, h without rotation for SDL rectangle
     local px, py, pw, ph = bb:getPhysicalRect(x, y, w, h)
