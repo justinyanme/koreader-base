@@ -80,6 +80,14 @@ function framebuffer:_newBB(w, h)
         inverse = self.bb:getInverse() == 1
         self.bb:free()
     end
+    -- A viewport only owns its view, not the underlying allocation. Release
+    -- that allocation too before replacing it, and let the device compute a
+    -- fresh viewport after resize (safe areas can change without window size).
+    if self.full_bb then
+        self.full_bb:free()
+        self.full_bb = nil
+    end
+    self.viewport = nil
 
     -- we present this buffer to the outside
     local sdl_bb_type = BB["TYPE_" .. (bb_emu or "BBRGB32")]
@@ -105,6 +113,13 @@ function framebuffer:_newBB(w, h)
 end
 
 function framebuffer:_render(bb, x, y, w, h)
+    -- Night mode clears the full allocation, including the safe-area margins.
+    -- Upload those margins too when inversion changes; subsequent refreshes
+    -- retain their requested dirty rectangles. SDL's texture is persistent.
+    if self.full_bb and self.rendered_inverse ~= bb:getInverse() then
+        x, y, w, h = 0, 0, bb:getWidth(), bb:getHeight()
+    end
+    self.rendered_inverse = bb:getInverse()
     -- x, y, w, h without rotation for SDL rectangle
     local px, py, pw, ph = bb:getPhysicalRect(x, y, w, h)
 

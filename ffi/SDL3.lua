@@ -689,6 +689,7 @@ function S.waitForEvent(sec, usec)
         SDL.SDL_RenderPresent(S.renderer)
     elseif (event.type == SDL.SDL_EVENT_WINDOW_RESIZED
              or event.type == SDL.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED
+             or event.type == SDL.SDL_EVENT_WINDOW_SAFE_AREA_CHANGED
              or event.type == SDL.SDL_EVENT_WINDOW_MOVED) then
         genEmuEvent(C.EV_SDL, event.type, event.window)
 
