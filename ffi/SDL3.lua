@@ -692,6 +692,23 @@ function S.waitForEvent(sec, usec)
              or event.type == SDL.SDL_EVENT_WINDOW_MOVED) then
         genEmuEvent(C.EV_SDL, event.type, event.window)
 
+    elseif event.type == SDL.SDL_EVENT_USER
+            and event.user.windowID == 0x4B4F4935 -- Native iOS lifecycle envelope (KOI5).
+            and event.user.code >= SDL.SDL_EVENT_TERMINATING
+            and event.user.code <= SDL.SDL_EVENT_DID_ENTER_FOREGROUND then
+        -- SDL_SendAppEvent invokes watchers without queueing these notifications.
+        -- The native watcher grants background time and pushes this envelope;
+        -- Lua handles it synchronously after polling, without a native callback.
+        genEmuEvent(C.EV_SDL, tonumber(event.user.code), nil)
+    elseif event.type == SDL.SDL_EVENT_TERMINATING
+            or event.type == SDL.SDL_EVENT_LOW_MEMORY
+            or event.type == SDL.SDL_EVENT_WILL_ENTER_BACKGROUND
+            or event.type == SDL.SDL_EVENT_DID_ENTER_BACKGROUND
+            or event.type == SDL.SDL_EVENT_WILL_ENTER_FOREGROUND
+            or event.type == SDL.SDL_EVENT_DID_ENTER_FOREGROUND then
+        -- Also support SDL backends/versions that queue app events directly.
+        genEmuEvent(C.EV_SDL, event.type, nil)
+
     --- Gamepad support ---
     -- For debugging it can be helpful to use:
     -- print(ffi.string(SDL.SDL_GetGamepadStringForButton(button)))
