@@ -34,6 +34,10 @@ list(APPEND CMAKE_ARGS
     -DSDL_SENSOR=OFF
     -DSDL_TRAY=OFF
 )
+if(IOS)
+    # No dylibs on iOS: the app links SDL3 statically.
+    list(APPEND CMAKE_ARGS -DSDL_SHARED=OFF -DSDL_STATIC=ON)
+endif()
 if(USE_SDL STREQUAL "builtin")
     list(APPEND CMAKE_ARGS
         # Miscellaneous video features/subsystems we don't care about.
@@ -46,7 +50,9 @@ list(APPEND BUILD_CMD COMMAND ninja)
 
 list(APPEND INSTALL_CMD COMMAND ${CMAKE_COMMAND} --install .)
 
-append_shared_lib_install_commands(INSTALL_CMD SDL3 VERSION 0)
+if(NOT IOS)
+    append_shared_lib_install_commands(INSTALL_CMD SDL3 VERSION 0)
+endif()
 
 external_project(
     DOWNLOAD URL 77e65a03b98e3f3227decd40261f47bd

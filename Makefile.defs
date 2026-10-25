@@ -312,8 +312,9 @@ endif
 # NOTE: This is necessary (at least on Android), because some early API levels will not put DT_NEEDED libraries in the global namespace.
 #       Ensuring Lua/C modules have their own DT_NEEDED entry to the shared LuaJIT library works around this quirk (and is otherwise mostly harmless).
 #       Saner APIs behave like Linux, and wouldn't require this hack.
-USE_LUAJIT_LIB = $(or $(DARWIN),$(ANDROID),$(WIN32))
-SKIP_LUAJIT_BIN = $(ANDROID)
+# iOS links LuaJIT statically into the app executable.
+USE_LUAJIT_LIB = $(if $(IOS),,$(or $(DARWIN),$(ANDROID),$(WIN32)))
+SKIP_LUAJIT_BIN = $(or $(ANDROID),$(IOS))
 
 RCP := cp -R
 WGET ?= wget --no-verbose --progress=dot:giga --show-progress
@@ -1164,7 +1165,7 @@ c = [CCACHE, '$(strip $(HOSTCC))']
 # c_ld
 cpp = [CCACHE, '$(strip $(HOSTCXX))']
 # cpp_ld
-ar = '$(strip $(HOSTSTRIP))'
+ar = '$(strip $(HOSTAR))'
 ranlib = '$(strip $(HOSTRANLIB))'
 strip = 'true'
 
