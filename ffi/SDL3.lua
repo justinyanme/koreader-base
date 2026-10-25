@@ -142,6 +142,17 @@ function S.open(w, h, x, y)
 
     SDL.SDL_SyncWindow(S.screen)
 
+    -- iOS display modes are pixels, but fullscreen windows use points. Query
+    -- the actual window before the first framebuffer/UI constants are built.
+    -- Keep desktop/Emulator sizing unchanged, including macOS Retina fullscreen.
+    if ffi.string(SDL.SDL_GetPlatform()) == "iOS" then
+        local window_w, window_h = ffi.new("int[1]"), ffi.new("int[1]")
+        if not SDL.SDL_GetWindowSize(S.screen, window_w, window_h) then
+            error("SDL cannot get window size: " .. ffi.string(SDL.SDL_GetError()))
+        end
+        S.win_w, S.win_h = tonumber(window_w[0]), tonumber(window_h[0])
+    end
+
     -- Disable TextInput until we enable it.
     -- Also see <https://github.com/slouken/SDL/commit/c0f9a3d814a815ec6e2822d7fd2e8648df79f7b9>.
     S:stopTextInput()
