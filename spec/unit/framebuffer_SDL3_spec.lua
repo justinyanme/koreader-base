@@ -11,7 +11,7 @@ describe("SDL framebuffer viewport resize", function()
 
     before_each(function()
         physical_w, physical_h = 1320, 2868
-        original_window = { SDL.win_w, SDL.win_h }
+        original_window = { SDL.win_w, SDL.win_h, SDL.w, SDL.h }
         uploaded = {}
         original_sdl, original_create, original_destroy, original_texture =
             SDL.SDL, SDL.createTexture, SDL.destroyTexture, SDL.texture
@@ -40,9 +40,11 @@ describe("SDL framebuffer viewport resize", function()
     after_each(function()
         screen.bb:free()
         if screen.full_bb then screen.full_bb:free() end
+        if screen.sdl_bb then screen.sdl_bb:free() end
         SDL.SDL, SDL.createTexture, SDL.destroyTexture, SDL.texture =
             original_sdl, original_create, original_destroy, original_texture
         SDL.win_w, SDL.win_h = original_window[1], original_window[2]
+        SDL.w, SDL.h = original_window[3], original_window[4]
     end)
 
     it("releases the old view and allocation, returning a full buffer for a new safe area", function()
@@ -51,8 +53,10 @@ describe("SDL framebuffer viewport resize", function()
         screen:resize()
         assert.is_nil(screen.viewport)
         assert.is_nil(screen.full_bb)
-        assert.is_true(old_view.data == nil)
-        assert.is_true(old_full.data == nil)
+        -- free() leaves the pointer value alone; ownership, not a nil pointer,
+        -- tells us whether the backing allocation has been released.
+        assert.are.equal(0, old_view:getAllocated())
+        assert.are.equal(0, old_full:getAllocated())
         assert.are.same({ w = 1320, h = 2868 }, screen:getRawSize())
         screen:setViewport{ x = 0, y = 180, w = 1320, h = 2586 }
         assert.are.same({ w = 1320, h = 2586 }, screen:getRawSize())
@@ -84,5 +88,23 @@ describe("SDL framebuffer viewport resize", function()
         assert.are.same({ 1320, 2868 }, uploaded[#uploaded])
         screen:refreshFull(0, 0, 100, 100)
         assert.are.same({ 100, 100 }, uploaded[#uploaded])
+    end)
+
+    it("does not let the flash shadow consume the final buffer's inversion transition", function()
+        screen:setViewport{ x = 0, y = 186, w = 1320, h = 2580 }
+        screen.refreshFullImp = nil
+        screen:refreshFull(0, 0, 100, 100)
+        screen.sdl_bb = BB.new(1320, 2868, BB.TYPE_BBRGB32)
+        screen:toggleNightMode()
+        local getenv = os.getenv
+        os.getenv = function(name)
+            if name == "EMULATE_READER_FLASH" then return "0" end
+            return getenv(name)
+        end
+        local ok, err = pcall(function() screen:refreshFull(0, 0, 100, 100) end)
+        os.getenv = getenv
+        assert(ok, err)
+        assert.are.same({ 100, 100 }, uploaded[#uploaded - 1]) -- temporary flash
+        assert.are.same({ 1320, 2868 }, uploaded[#uploaded]) -- final pixels, including margins
     end)
 end)

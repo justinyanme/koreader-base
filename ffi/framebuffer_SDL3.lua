@@ -116,10 +116,14 @@ function framebuffer:_render(bb, x, y, w, h)
     -- Night mode clears the full allocation, including the safe-area margins.
     -- Upload those margins too when inversion changes; subsequent refreshes
     -- retain their requested dirty rectangles. SDL's texture is persistent.
-    if self.full_bb and self.rendered_inverse ~= bb:getInverse() then
-        x, y, w, h = 0, 0, bb:getWidth(), bb:getHeight()
+    if self.full_bb and bb == self.full_bb then
+        if self.rendered_inverse ~= bb:getInverse() then
+            x, y, w, h = 0, 0, bb:getWidth(), bb:getHeight()
+        end
+        -- A flash shadow may be presented first; only the final full buffer
+        -- owns this state, so that shadow cannot consume the transition.
+        self.rendered_inverse = bb:getInverse()
     end
-    self.rendered_inverse = bb:getInverse()
     -- x, y, w, h without rotation for SDL rectangle
     local px, py, pw, ph = bb:getPhysicalRect(x, y, w, h)
 
