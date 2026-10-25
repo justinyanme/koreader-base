@@ -32,6 +32,7 @@ describe("SDL fullscreen window coordinates", function()
                 SDL_GetPrimaryDisplay = function() return 1 end,
                 SDL_GetCurrentDisplayMode = function() return { w = 1320, h = 2868 } end,
                 SDL_CreateWindow = function() return {} end,
+                SDL_EnableScreenSaver = function() end,
                 SDL_SetWindowPosition = yes,
                 SDL_SyncWindow = yes,
                 SDL_GetPlatform = function() return platform end,

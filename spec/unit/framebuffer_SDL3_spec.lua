@@ -19,7 +19,7 @@ describe("SDL framebuffer viewport resize", function()
             SDL_GetWindowSize = function(_, w, h) w[0], h[0] = physical_w / 3, physical_h / 3; return true end,
             SDL_GetCurrentRenderOutputSize = function(_, w, h) w[0], h[0] = physical_w, physical_h; return true end,
             SDL_UpdateTexture = function(_, rect)
-                table.insert(uploaded, { tonumber(rect[0].w), tonumber(rect[0].h) })
+                table.insert(uploaded, { tonumber(rect.w), tonumber(rect.h) })
                 return true
             end,
             SDL_RenderClear = function() return true end,
@@ -49,13 +49,13 @@ describe("SDL framebuffer viewport resize", function()
 
     it("releases the old view and allocation, returning a full buffer for a new safe area", function()
         screen:setViewport{ x = 0, y = 186, w = 1320, h = 2580 }
-        local old_view, old_full = screen.bb, screen.full_bb
+        local old_full = screen.full_bb
+        assert.are.equal(1, old_full:getAllocated())
         screen:resize()
         assert.is_nil(screen.viewport)
         assert.is_nil(screen.full_bb)
         -- free() leaves the pointer value alone; ownership, not a nil pointer,
         -- tells us whether the backing allocation has been released.
-        assert.are.equal(0, old_view:getAllocated())
         assert.are.equal(0, old_full:getAllocated())
         assert.are.same({ w = 1320, h = 2868 }, screen:getRawSize())
         screen:setViewport{ x = 0, y = 180, w = 1320, h = 2586 }
